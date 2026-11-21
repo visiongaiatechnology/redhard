@@ -1,0 +1,50 @@
+# Python & Build Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Compiled Binaries & Local Third-Party Worktrees
+probes/bin/
+third_party/bin/
+third_party/atomic-red-team/
+third_party/clamav-testfiles/
+third_party/event-generator/
+third_party/go-ftw/
+third_party/gotestwaf/
+third_party/lynis/
+
+# Local Benchmark Outputs & Archives
+results/
+*.zip
+*.tar.gz
+*.ocsf.jsonl
+*.sarif.json
+*.attack_layer.json
+
+# Secrets, Keys & Local Targets Override
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+.env
+.env.*
+configs/targets.local.json
+
+# Internal Developer / Agent Notes (VGT-GitHubPusher Policy)
+Next.md
+NEXT.md
+CURRENT_TASK.md
+HANDOFF.md
+SESSION_NOTES.md
+DEVELOPER_NOTES.md
+AGENT_NOTES.md
+WORKLOG.md

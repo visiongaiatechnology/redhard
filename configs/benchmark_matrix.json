@@ -1,0 +1,11 @@
+{
+  "schema": "vgt-hardred-matrix-v1",
+  "domains": [
+    "hardred-waf",
+    "hardred-netids",
+    "hardred-endpoint",
+    "hardred-malware",
+    "hardred-compliance",
+    "hardred-perf"
+  ]
+}

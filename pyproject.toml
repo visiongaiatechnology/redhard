@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vgt-hardred"
+version = "1.0.0"
+description = "VGT HardRed (RedHard) — Experimental Full-Stack Linux Security Benchmark & 4-Axis Evaluation Suite"
+readme = "README.md"
+license = { text = "AGPL-3.0-only" }
+requires-python = ">=3.11"
+authors = [
+  { name = "Vision Gaia Technology (VGT)", email = "security@visiongaiatechnology.de" }
+]
+keywords = ["linux-security", "benchmark", "edr", "xdr", "waf", "ebpf", "mitre-attack", "ocsf", "sarif"]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/visiongaiatechnology/redhard"
+Repository = "https://github.com/visiongaiatechnology/redhard.git"
+Issues = "https://github.com/visiongaiatechnology/redhard/issues"
+
+[project.scripts]
+vgt-hardred = "vgt_hardred.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["vgt_hardred*"]

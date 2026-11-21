@@ -1,0 +1,61 @@
+{
+  "schema": "vgt-hardred-targets-v1",
+  "vm": {
+    "name": "HardRed-Target-VM",
+    "vboxmanage": "C:/Program Files/Oracle/VirtualBox/VBoxManage.exe",
+    "ssh_exe": "C:/Windows/System32/OpenSSH/ssh.exe",
+    "scp_exe": "C:/Windows/System32/OpenSSH/scp.exe",
+    "ssh_key": "~/.ssh/hardred_target_vm",
+    "control_host": "127.0.0.1",
+    "control_port": 2222,
+    "control_user": "pentest",
+    "target_ip": "192.168.56.50",
+    "attacker_source_ip": "192.168.56.1",
+    "http_base_url": "http://192.168.56.50",
+    "https_base_url": "https://192.168.56.50",
+    "remote_work_dir": "/tmp/hardred-work",
+    "sandbox_root": "/tmp/hardred-sandbox",
+    "shm_sandbox_root": "/dev/shm/hardred-sandbox"
+  },
+  "contenders": {
+    "baseline": {
+      "label": "Baseline (Clean Ubuntu HWE 7.0 WebStack)",
+      "snapshot": "01b-target-webstack-hwe7",
+      "adapter": "baseline",
+      "service_names": [
+        "nginx",
+        "php8.3-fpm"
+      ]
+    },
+    "gedefense": {
+      "label": "GeDefense Linux 6.1.2 (Max-Hardness)",
+      "snapshot": "03b-gedefense-6.1.2-max-bench",
+      "adapter": "gedefense",
+      "service_names": [
+        "gedefense-control",
+        "gedefense-core",
+        "gedefense-access"
+      ]
+    },
+    "crowdsec": {
+      "label": "CrowdSec (Max Collections + Bouncers + AppSec WAF)",
+      "snapshot": "04-crowdsec-max",
+      "adapter": "crowdsec",
+      "service_names": [
+        "crowdsec",
+        "crowdsec-firewall-bouncer",
+        "crowdsec-nginx-bouncer"
+      ]
+    },
+    "wazuh": {
+      "label": "Wazuh (Max Rules + FIM + Auditd + Active Response)",
+      "snapshot": "05-wazuh-max",
+      "adapter": "wazuh",
+      "service_names": [
+        "wazuh-manager",
+        "wazuh-agent",
+        "auditd"
+      ]
+    }
+  }
+}
