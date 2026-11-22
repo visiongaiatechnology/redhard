@@ -49,6 +49,35 @@ Evaluating Linux security software in the real world is historically fragmented:
 
 ---
 
+## 📊 VGT HardRed Benchmark — V6.2.0 Evaluation
+
+Evaluated with the open-source **[VGT HardRed (`RedHard`)](https://github.com/visiongaiatechnology/redhard)** multi-domain Linux security benchmark on a clean snapshot-isolated **Ubuntu 24.04 (Linux HWE 7.0, NGINX + PHP 8.3-FPM)** target VM (`eth0` out-of-band control plane, `eth1` unallowlisted host-only attack plane; 4-axis model: Efficacy 45% · FP Resilience 20% · Latency & Containment 20% · Overhead 15%):
+
+| Rank | Security Contender | Overall (0–100) | Axis 1: Efficacy | Axis 2: FP Resilience | Axis 3: Latency & Containment | Axis 4: Overhead | Gate |
+|---:|---|---:|---:|---:|---:|---:|---|
+| 1 | **GeDefense Linux 6.2.0 (`Max-Hardness`)** | **86.16** | **80.49** | **100.00** | **78.07** | **95.53** | **`PASS`** |
+| 2 | **Wazuh (`Max Rules + FIM + Auditd + Active Response`)** | **46.29** | 31.74 | 69.23 | 22.14 | 91.53 | `CONDITIONAL` |
+| Ref | **Baseline (`Clean Ubuntu HWE 7.0 WebStack`)** | **45.82** | 16.94 | 100.00 | 15.97 | 100.00 | `CONDITIONAL` |
+| 3 | **CrowdSec (`Max Collections + Bouncers + AppSec WAF`)** | **35.83** | 42.89 | 0.00 | 28.38 | 72.37 | `FAIL` |
+
+### GeDefense 6.2.0 Domain & Performance Breakdown
+
+| Domain | Detection TPR | Prevention TPR | Det / Prot FPR | Context (0–3) | Median TTFA | Domain Score | Key Runtime Metric |
+|---|---:|---:|---:|---:|---:|---:|---|
+| `hardred-waf` | 100.0% | 100.0% | 0.0% / 0.0% | 3.00 | 250.0 ms | **100.0** | 0/8 benign FPs; HTTP `403` inline edge |
+| `hardred-netids` | 100.0% | 100.0% | 0.0% / 0.0% | 2.50 | 175.9 ms | **98.3** | XDP/Kinetic drops HTTP flood, SSH spray & portscan |
+| `hardred-compliance` | 100.0% | 86.0% | 0.0% / 0.0% | 3.00 | — | **86.0** | Lynis Hardening Index `71` (Baseline `63`); 8 active LSMs incl. `bpf` |
+| `hardred-malware` | 100.0% | 33.3% | 0.0% / 0.0% | 1.67 | 250.0 ms | **65.6** | HTTP EICAR `403` + host `FAN_CLOSE_WRITE` & execution block |
+| `hardred-endpoint` | 53.3% | 53.3% | 0.0% / 0.0% | 2.11 | 250.0 ms | **59.0** | **Damage Ratio `18.1%`** (Baseline `100.0%`): ransomware freeze & `memfd`/`/tmp` exec denied |
+
+- **Measured System Overhead (`03d-gedefense-6.2.0-max-bench` vs. Clean Baseline):** `730.7` HTTP RPS (`8.74 ms` p50 · **`17.99 ms` p95** vs. `21.23 ms` baseline) · `90,420.3` Sysbench EPS · `245.2` FIO IOPS · **`83.3 MiB`** Security RSS · **`4.3%`** Security CPU.
+> [!NOTE]
+> **Environment Variance & Engineering Transparency:** Benchmark figures naturally vary by Linux kernel release and active LSM boot flags (`lsm=...,bpf`), CPU/I-O hardware, network topology, custom workload allowlists (for example, external payment/API egress destinations needed by production PHP/Node apps), and test harness versions. Earlier 6.1.2/6.2.0 test runs also exposed real bugs and open gaps — including non-root writer filtering in the on-write scanner, 1-second ransomware ring drain latency (reduced to 100 ms), missing login/account-management binaries in the Credential Guard allowlist, Rust `HARDENING_SET` vocabulary parity for `astraeaos-cis-l1`, and StyX cold-start cgroup drift — all of which were fixed cleanly in GeDefense 6.2.0 to strengthen real-world protection independent of any benchmark.
+
+---
+
+
+
 ## 2. Dual-Plane Isolation Architecture
 
 A common flaw in automated security benchmarks is **self-lockout**: as soon as an IPS, XDP filter, or firewall bouncer bans the attacker IP during a port scan or WAF test, the benchmark runner loses its SSH connection and cannot read telemetry or execute subsequent tests.
