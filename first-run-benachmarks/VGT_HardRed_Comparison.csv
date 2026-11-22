@@ -1,0 +1,5 @@
+rank,contender_id,contender_label,overall_score,axis1_efficacy,axis2_fp_resilience,axis3_latency_containment,axis4_overhead,gate_status,waf_det_tpr,waf_prev_tpr,netids_det_tpr,netids_prev_tpr,endpoint_det_tpr,endpoint_prev_tpr,malware_det_tpr,malware_prev_tpr,lynis_index,http_p95_ms,security_rss_mib
+1,gedefense,GeDefense Linux 6.2.0 (Max-Hardness),86.16,80.49,100.0,78.07,95.53,PASS,1.0,1.0,1.0,1.0,0.5333,0.5333,1.0,0.3333,71,17.988,83.35
+2,wazuh,Wazuh (Max Rules + FIM + Auditd + Active Response),46.29,31.74,69.23,22.14,91.53,CONDITIONAL,0.0,0.0,0.25,0.25,0.5333,0.0667,0.6667,0.0,65,11.564,71.37
+3,baseline,Baseline (Clean Ubuntu HWE 7.0 WebStack),45.82,16.94,100.0,15.97,100.0,CONDITIONAL,0.0,0.0,0.0,0.0,0.0,0.0667,0.0,0.0,63,21.232,24.8
+4,crowdsec,CrowdSec (Max Collections + Bouncers + AppSec WAF),35.83,42.89,0.0,28.38,72.37,FAIL,0.9286,0.8571,0.25,0.25,0.0,0.0667,0.0,0.3333,63,34.43,302.4
