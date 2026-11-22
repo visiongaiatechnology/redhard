@@ -1,6 +1,6 @@
 <div align="center">
 
-<img width="260" alt="Vision Gaia Technology — VGT HardRed" src="assets/vgtcode.png" />
+<img width="536" height="324" alt="REDHARD_logo_transparent" src="https://github.com/user-attachments/assets/6f1f2848-7c47-44f1-8519-e9dc34689921" />
 
 # VGT HardRed (`RedHard`)
 ### 全栈 Linux 安全基准测试、四轴评估引擎与多域遥测套件
