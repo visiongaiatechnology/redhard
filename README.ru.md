@@ -1,6 +1,6 @@
 <div align="center">
 
-<img width="260" alt="Vision Gaia Technology — VGT HardRed" src="assets/vgtcode.png" />
+<img width="536" height="324" alt="REDHARD_logo_transparent" src="https://github.com/user-attachments/assets/6f1f2848-7c47-44f1-8519-e9dc34689921" />
 
 # VGT HardRed (`RedHard`)
 ### Комплексный бенчмарк безопасности Linux, 4-осевой механизм оценки и мультидоменная платформа телеметрии
