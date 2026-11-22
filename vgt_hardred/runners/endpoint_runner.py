@@ -24,15 +24,34 @@ def run_endpoint_domain(
     meta: dict[str, Any] = {}
     vm.ensure_sandboxes()
 
-    remote_probe = f"{vm.cfg.remote_work_dir}/hardred-probe"
-    vm.scp_push(probe_linux_bin, remote_probe, timeout_sec=60)
-    vm.ssh(f"chmod +x {remote_probe}", timeout_sec=15)
+    staged_probe = f"{vm.cfg.remote_work_dir}/hardred-probe"
+    vm.scp_push(probe_linux_bin, staged_probe, timeout_sec=60)
+    # Install test drivers into root-owned /usr/local/bin so W^X / /tmp-noexec
+    # protections (e.g. TITAN-Exec untrusted) keep blocking /tmp/hardred-sandbox
+    # payloads without blocking the benchmark instrumentation binary itself.
+    rc_inst, _, _ = vm.ssh(
+        f"sudo install -m 0755 -o root -g root {staged_probe} /usr/local/bin/hardred-probe && rm -f {staged_probe}",
+        timeout_sec=15,
+    )
+    if rc_inst == 0:
+        remote_probe = "/usr/local/bin/hardred-probe"
+    else:
+        remote_probe = staged_probe
+        vm.ssh(f"chmod +x {remote_probe}", timeout_sec=15)
 
     remote_evgen = ""
     if event_gen_linux_bin and event_gen_linux_bin.is_file():
-        remote_evgen = f"{vm.cfg.remote_work_dir}/event-generator"
-        vm.scp_push(event_gen_linux_bin, remote_evgen, timeout_sec=60)
-        vm.ssh(f"chmod +x {remote_evgen}", timeout_sec=15)
+        staged_evgen = f"{vm.cfg.remote_work_dir}/event-generator"
+        vm.scp_push(event_gen_linux_bin, staged_evgen, timeout_sec=60)
+        rc_ev_inst, _, _ = vm.ssh(
+            f"sudo install -m 0755 -o root -g root {staged_evgen} /usr/local/bin/event-generator && rm -f {staged_evgen}",
+            timeout_sec=15,
+        )
+        if rc_ev_inst == 0:
+            remote_evgen = "/usr/local/bin/event-generator"
+        else:
+            remote_evgen = staged_evgen
+            vm.ssh(f"chmod +x {remote_evgen}", timeout_sec=15)
         meta["event_generator_pushed"] = True
 
     def exec_probe_case(
@@ -84,8 +103,8 @@ def run_endpoint_domain(
         if prevented_check == "nonzero_exit_or_kill":
             prevented = rc != 0 or parsed_json.get("ok") is False
         elif prevented_check == "ransom_stop":
-            # Signal killed (137/143/etc.), halted early (< total_files), or child killed.
-            killed_sig = rc in (137, 143, 129, 139) or bool(parsed_json.get("child_killed"))
+            # Signal killed (137/143/etc. or SSH -1 -> 255/4294967295), halted early (< total_files), or child killed.
+            killed_sig = rc in (137, 143, 129, 139, 255, 4294967295) or bool(parsed_json.get("child_killed"))
             early_stop = (damaged is not None and total_files is not None and damaged < total_files)
             prevented = killed_sig or early_stop or rc != 0
         elif prevented_check == "lpe_sctp_blocked":
@@ -144,6 +163,7 @@ def run_endpoint_domain(
             ),
             f"python3 - <<'PY'\n{benign_py}PY",
             prevented_check="benign_ok",
+            settle_sec=0.4,
         )
     )
     cases_out.append(
@@ -162,6 +182,7 @@ def run_endpoint_domain(
             ),
             "python3 -c \"import os, json; print(json.dumps({'ok': os.path.isdir('/etc/nginx')}))\"",
             prevented_check="benign_ok",
+            settle_sec=0.4,
         )
     )
 
@@ -181,6 +202,7 @@ def run_endpoint_domain(
                 severity="critical",
             ),
             f"{remote_probe} memfd-exec",
+            settle_sec=0.6,
         )
     )
 
@@ -200,6 +222,7 @@ def run_endpoint_domain(
                 severity="high",
             ),
             f"{remote_probe} shm-exec -sandbox {vm.cfg.shm_sandbox_root}",
+            settle_sec=0.6,
         )
     )
 
@@ -219,6 +242,7 @@ def run_endpoint_domain(
                 severity="critical",
             ),
             f"{remote_probe} tmp-exec -sandbox {vm.cfg.sandbox_root}/tmpexec",
+            settle_sec=0.6,
         )
     )
 
@@ -239,6 +263,7 @@ def run_endpoint_domain(
             ),
             f"{remote_probe} lpe-probe",
             prevented_check="lpe_sctp_blocked",
+            settle_sec=0.6,
         )
     )
 
@@ -344,7 +369,7 @@ def run_endpoint_domain(
             styx_cmd,
             timeout_sec=15,
             prevented_check="nonzero_exit_or_kill",
-            settle_sec=1.5,
+            settle_sec=2.2,
         )
     )
 

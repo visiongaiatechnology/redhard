@@ -1,6 +1,6 @@
 # VGT HardRed (RedHard) — Architecture & Methodology Specification
 
-**Version:** `1.0.0`  
+**Version:** `1.0.1`  
 **License:** `AGPL-3.0-only` (First-Party Code) · Upstream OSI Licenses for Third-Party Suites ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md))  
 **Scope:** Universal, Snapshot-Isolated Multi-Domain Linux Security Benchmark & 4-Axis Evaluation Framework
 

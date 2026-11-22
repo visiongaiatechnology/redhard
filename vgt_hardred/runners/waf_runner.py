@@ -121,7 +121,7 @@ def run_waf_benign(
                     status = None
             dur = (time.perf_counter() - t0) * 1000.0
             end_utc = datetime.now(timezone.utc).isoformat()
-            verdict = adapter.collect_since(cursor, case, t0_utc, settle_sec=0.7)
+            verdict = adapter.collect_since(cursor, case, t0_utc, settle_sec=0.25)
             prevented = status is None or status in (403, 406, 429, 444, 502)
             cases_out.append(
                 CaseResult(
@@ -148,6 +148,23 @@ def run_waf_benign(
     return cases_out
 
 
+def _http_probe_reachable(base_url: str, timeout: float = 1.0) -> bool:
+    parsed = urllib.parse.urlparse(base_url)
+    conn = http.client.HTTPConnection(parsed.hostname or "127.0.0.1", parsed.port or 80, timeout=timeout)
+    try:
+        conn.request("GET", "/health.php", headers={"Connection": "close"})
+        resp = conn.getresponse()
+        _ = resp.read(64)
+        return resp.status < 500
+    except Exception:
+        return False
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def run_waf_attacks(
     vm: VMController,
     adapter: ContenderAdapter,
@@ -155,9 +172,11 @@ def run_waf_attacks(
     cases_out: list[CaseResult] = []
     base_url = vm.cfg.http_base_url
 
+    adapter.clear_attacker_blocks()
     # Targeted WAF Evasion & Attack Vectors
-    for cid, cat, tech, tactic, kind, payload in _WAF_ATTACK_VECTORS:
-        adapter.clear_attacker_blocks()
+    for idx, (cid, cat, tech, tactic, kind, payload) in enumerate(_WAF_ATTACK_VECTORS):
+        if idx > 0 and (idx % 6 == 0 or not _http_probe_reachable(base_url, timeout=0.6)):
+            adapter.clear_attacker_blocks()
         case = GroundTruthCase(
             case_id=cid,
             domain="hardred-waf",
@@ -188,7 +207,7 @@ def run_waf_attacks(
             status, note = _send_http(base_url, "POST", "/index.php", body=payload.encode(), headers={"Content-Type": "text/plain"})
         dur = (time.perf_counter() - t0) * 1000.0
         end_utc = datetime.now(timezone.utc).isoformat()
-        verdict = adapter.collect_since(cursor, case, t0_utc, settle_sec=0.8)
+        verdict = adapter.collect_since(cursor, case, t0_utc, settle_sec=0.35)
         prevented = status is None or status in (403, 404, 406, 413, 429, 444) if cid != "WAF-SCAN-01" else (status is None or status in (403, 406, 429, 444))
         ttfa = verdict.ttfa_ms if verdict.ttfa_ms is not None else (round(dur, 2) if prevented else None)
         cases_out.append(
@@ -215,6 +234,8 @@ def run_gotestwaf_corpus(
     vm: VMController,
     results_dir: Path,
     gotestwaf_bin: Path | None = None,
+    adapter: ContenderAdapter | None = None,
+    max_sec: int = 35,
 ) -> dict[str, Any]:
     base_url = vm.cfg.http_base_url
     gtw_meta: dict[str, Any] = {"available": False}
@@ -233,9 +254,11 @@ def run_gotestwaf_corpus(
             "--workers",
             "8",
             "--sendDelay",
-            "10",
+            "5",
             "--randomDelay",
             "5",
+            "--idleConnTimeout",
+            "1",
             "--blockStatusCodes",
             "403,406,429",
             "--passStatusCodes",
@@ -253,13 +276,41 @@ def run_gotestwaf_corpus(
             "--quiet",
         ]
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=240, check=False)
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            deadline = time.monotonic() + max_sec
+            unbans = 0
+            last_unban = time.monotonic()
+            while proc.poll() is None:
+                if time.monotonic() >= deadline:
+                    proc.kill()
+                    out, err = proc.communicate(timeout=5)
+                    return {"available": True, "error": f"gotestwaf timed out after {max_sec}s", "mid_run_unbans": unbans, "stderr": err.strip()[:300]}
+                time.sleep(0.8)
+                if adapter is not None and getattr(adapter, "contender_id", "") != "baseline":
+                    if (time.monotonic() - last_unban >= 2.0) or not _http_probe_reachable(base_url, timeout=0.6):
+                        if not _http_probe_reachable(base_url, timeout=0.5) and unbans >= 3:
+                            proc.kill()
+                            out, err = proc.communicate(timeout=5)
+                            return {
+                                "available": True,
+                                "stopped_on_active_ip_ban": True,
+                                "mid_run_unbans": unbans,
+                                "stderr": err.strip()[:300],
+                            }
+                        try:
+                            adapter.clear_attacker_blocks()
+                            unbans += 1
+                            last_unban = time.monotonic()
+                        except Exception:
+                            pass
+            out, err = proc.communicate(timeout=5)
             rep_file = gtw_dir / "gotestwaf_report.json"
             gtw_meta = {
                 "available": True,
                 "exit_code": proc.returncode,
+                "mid_run_unbans": unbans,
                 "report_exists": rep_file.is_file(),
-                "stderr": proc.stderr.strip()[:300],
+                "stderr": err.strip()[:300],
             }
             if rep_file.is_file():
                 gtw_meta["report"] = json.loads(rep_file.read_text(encoding="utf-8", errors="replace"))

@@ -39,7 +39,7 @@ def run_compliance_domain(
                 f"cd {vm.cfg.remote_work_dir} && rm -rf lynis && tar -xzf lynis.tar.gz && "
                 f"sudo mkdir -p lynis/plugins && "
                 f"sudo chown -R 0:0 lynis && sudo chmod 755 lynis/lynis && sudo chmod -R go-w lynis && "
-                f"cd {vm.cfg.remote_work_dir}/lynis && sudo /bin/sh ./lynis audit system --quick --no-colors --quiet </dev/null 2>&1 || true; "
+                f"sudo /bin/sh -c 'cd {vm.cfg.remote_work_dir}/lynis && /bin/sh ./lynis audit system --quick --no-colors --quiet </dev/null' 2>&1 || true; "
                 f"sudo grep -E 'hardening_index|warning\\[\\]|suggestion\\[\\]' /var/log/lynis-report.dat 2>/dev/null || true",
                 timeout_sec=180,
             )

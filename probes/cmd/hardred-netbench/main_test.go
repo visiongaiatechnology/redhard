@@ -187,6 +187,28 @@ func TestPortScanLocalListener(t *testing.T) {
 	}
 }
 
+func TestSSHSprayStopsEarlyAfterConsecutiveDrops(t *testing.T) {
+	closedLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	addr := closedLn.Addr().String()
+	_ = closedLn.Close()
+
+	res, err := netbench.RunSSHSpray(netbench.SSHSprayOptions{
+		Addr:      addr,
+		Attempts:  18,
+		DelayMs:   0,
+		TimeoutMs: 500,
+	})
+	if err != nil {
+		t.Fatalf("RunSSHSpray: %v", err)
+	}
+	if res.FirstDropIdx != 0 || res.TCPRefused != 4 || len(res.Results) != 4 {
+		t.Fatalf("expected early stop at 4 consecutive drops, got first=%d refused=%d results=%d", res.FirstDropIdx, res.TCPRefused, len(res.Results))
+	}
+}
+
 func TestNetbenchCLIHelp(t *testing.T) {
 	if code := run([]string{"--help"}); code != 0 {
 		t.Fatalf("expected --help to return 0, got %d", code)

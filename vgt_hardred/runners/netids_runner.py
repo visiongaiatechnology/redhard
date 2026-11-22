@@ -65,7 +65,7 @@ def run_netids_benign(
         except Exception:
             pass
     dur = (time.perf_counter() - t0) * 1000.0
-    verdict = adapter.collect_since(cursor, benign_case, t0_utc, settle_sec=1.0)
+    verdict = adapter.collect_since(cursor, benign_case, t0_utc, settle_sec=0.3)
     cases_out.append(
         CaseResult(
             case=benign_case,
@@ -112,7 +112,7 @@ def run_netids_benign(
             tls_blk += 1
         time.sleep(0.2)
     dur = (time.perf_counter() - t0) * 1000.0
-    verdict = adapter.collect_since(cursor, benign_tls, t0_utc, settle_sec=1.0)
+    verdict = adapter.collect_since(cursor, benign_tls, t0_utc, settle_sec=0.3)
     cases_out.append(
         CaseResult(
             case=benign_tls,
@@ -160,6 +160,7 @@ def run_netids_attacks(
     t0_utc = datetime.now(timezone.utc).isoformat()
     t0 = time.perf_counter()
     bf_blocked = 0
+    consec_drop = 0
     for idx in range(25):
         req = urllib.request.Request(
             f"{base_url}/wp-login.php",
@@ -168,16 +169,21 @@ def run_netids_attacks(
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         try:
-            with urllib.request.urlopen(req, timeout=2.5) as r:
+            with urllib.request.urlopen(req, timeout=1.5) as r:
+                consec_drop = 0
                 if r.status in (403, 429):
                     bf_blocked += 1
         except urllib.error.HTTPError as e:
+            consec_drop = 0
             if e.code in (403, 429):
                 bf_blocked += 1
         except Exception:
             bf_blocked += 1
+            consec_drop += 1
+            if consec_drop >= 5 and bf_blocked >= 10:
+                break
     dur = (time.perf_counter() - t0) * 1000.0
-    verdict = adapter.collect_since(cursor, http_bf_case, t0_utc, settle_sec=2.0)
+    verdict = adapter.collect_since(cursor, http_bf_case, t0_utc, settle_sec=1.0)
     cases_out.append(
         CaseResult(
             case=http_bf_case,
@@ -212,9 +218,9 @@ def run_netids_attacks(
     cursor = adapter.capture_cursor()
     t0_utc = datetime.now(timezone.utc).isoformat()
     t0 = time.perf_counter()
-    ssh_res = _run_netbench(netbench_bin, ["ssh-spray", "-addr", f"{target_ip}:22", "-attempts", "18", "-delay-ms", "80"])
+    ssh_res = _run_netbench(netbench_bin, ["ssh-spray", "-addr", f"{target_ip}:22", "-attempts", "18", "-delay-ms", "80", "-timeout-ms", "1200"])
     dur = (time.perf_counter() - t0) * 1000.0
-    verdict = adapter.collect_since(cursor, ssh_case, t0_utc, settle_sec=3.0)
+    verdict = adapter.collect_since(cursor, ssh_case, t0_utc, settle_sec=1.5)
     ssh_prev = int(ssh_res.get("first_drop_idx", -1)) >= 0 or (
         int(ssh_res.get("timeouts", 0)) + int(ssh_res.get("tcp_refused", 0))
     ) >= 3
@@ -252,9 +258,9 @@ def run_netids_attacks(
     cursor = adapter.capture_cursor()
     t0_utc = datetime.now(timezone.utc).isoformat()
     t0 = time.perf_counter()
-    burst_res = _run_netbench(netbench_bin, ["rate-burst", "-url", f"{base_url}/index.php?burst=1", "-requests", "240", "-concurrency", "28", "-timeout-ms", "2500"])
+    burst_res = _run_netbench(netbench_bin, ["rate-burst", "-url", f"{base_url}/index.php?burst=1", "-requests", "240", "-concurrency", "28", "-timeout-ms", "1200", "-recovery-wait-ms", "1200"])
     dur = (time.perf_counter() - t0) * 1000.0
-    verdict = adapter.collect_since(cursor, burst_case, t0_utc, settle_sec=2.0)
+    verdict = adapter.collect_since(cursor, burst_case, t0_utc, settle_sec=1.0)
     blk_burst = (
         int(burst_res.get("rate_limited_429", 0))
         + int(burst_res.get("blocked_403", 0))
@@ -300,10 +306,10 @@ def run_netids_attacks(
     t0 = time.perf_counter()
     scan_res = _run_netbench(
         netbench_bin,
-        ["portscan", "-host", target_ip, "-ports", "21,22,23,25,80,110,139,443,445,3306,3389,5432,6379,8080,8443,9200", "-timeout-ms", "700"],
+        ["portscan", "-host", target_ip, "-ports", "21,22,23,25,80,110,139,443,445,3306,3389,5432,6379,8080,8443,9200", "-timeout-ms", "450"],
     )
     dur = (time.perf_counter() - t0) * 1000.0
-    verdict = adapter.collect_since(cursor, scan_case, t0_utc, settle_sec=2.0)
+    verdict = adapter.collect_since(cursor, scan_case, t0_utc, settle_sec=1.0)
     # Follow-up probe on OPEN port 80 checks if IP is now banned/blackholed on eth1.
     ban_active = False
     try:

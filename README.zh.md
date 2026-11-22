@@ -7,7 +7,7 @@
 
 [![License](https://img.shields.io/badge/License-AGPL--3.0--only-blue?style=for-the-badge)](LICENSE)
 [![Third-Party](https://img.shields.io/badge/Third--Party-OSI_Upstream_Suites-0A7E8C?style=for-the-badge)](THIRD_PARTY_NOTICES.md)
-[![Version](https://img.shields.io/badge/Version-1.0.0-orange?style=for-the-badge)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-1.0.1-orange?style=for-the-badge)](CHANGELOG.md)
 [![Status](https://img.shields.io/badge/Status-Experimental_Benchmark_Suite-blueviolet?style=for-the-badge)](#️-实验性组合基准测试免责声明)
 [![Target](https://img.shields.io/badge/Target-Linux_x86__64_(Kernel_6.x%2F7.x)-lightgrey?style=for-the-badge&logo=linux)](#-2-双平面隔离架构-dual-plane-isolation)
 [![Orchestrator](https://img.shields.io/badge/Orchestrator-Python_3.11%2B_(Zero--Dep)-3776AB?style=for-the-badge&logo=python)](#-6-快速开始与安装)
@@ -327,7 +327,7 @@ redhard/
 ├── README.zh.md                    # 简体中文文档 (中文)
 ├── SECURITY.md                     # 负责任使用与安全漏洞报告策略
 ├── THIRD_PARTY_NOTICES.md          # 完整的第三方归属与许可证台账
-├── VERSION                         # 发布版本号 (1.0.0)
+├── VERSION                         # 发布版本号 (1.0.1)
 └── pyproject.toml                  # Python 包清单
 ```
 

@@ -105,7 +105,8 @@ class CrowdSecAdapter:
                 continue
             aid = al.get("id")
             ts = parse_iso_utc(al.get("created_at") or al.get("start_at"))
-            if aid not in b_alert_ids or (ts and ts >= t0_epoch - 0.5):
+            is_new = (aid is not None and aid not in b_alert_ids) or (aid is None and ts is not None and ts >= t0_epoch)
+            if is_new:
                 alerts.append({
                     "sensor": "crowdsec-lapi",
                     "rule_id": al.get("scenario") or al.get("reason") or al.get("message") or "crowdsec/alert",

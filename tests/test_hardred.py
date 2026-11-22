@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from vgt_hardred.adapters.base import compute_context_maturity
+from vgt_hardred.adapters.gedefense import _REMOTE_SNAPSHOT_PY, diff_snapshots
 from vgt_hardred.errors import SecurityBoundaryError, ValidationError
 from vgt_hardred.exporters import export_attack_navigator_layer, export_ocsf_jsonl, export_sarif_json
 from vgt_hardred.models import CaseResult, GroundTruthCase, PerfMetrics
@@ -94,6 +95,82 @@ class TestScoringAndExporters(unittest.TestCase):
             self.assertTrue((root / "results" / "VGT_HardRed_Comparison.csv").is_file())
             self.assertTrue((root / "results" / "FINAL_BENCHMARK_REPORT.md").is_file())
             self.assertTrue((root / "results" / "VGT_HardRed_Dashboard.html").is_file())
+
+
+class TestGeDefenseTelemetryDiff(unittest.TestCase):
+    def test_ignores_failed_429_before_sections_and_housekeeping_info(self) -> None:
+        before = {
+            "status": {
+                "events": [
+                    {"id": "ev-old", "kind": "malware.execution_blocked", "severity": "critical", "time": "2026-11-22T07:50:59Z"},
+                ]
+            },
+            "titan_exec_events": {"_error": "HTTP 429 rate limited"},
+            "worker_guard": {"_error": "HTTP 429 rate limited"},
+            "styx": {"_error": "HTTP 429 rate limited"},
+        }
+        after = {
+            "status": {
+                "events": [
+                    {"id": "ev-old", "kind": "malware.execution_blocked", "severity": "critical", "time": "2026-11-22T07:50:59Z"},
+                    {"id": "ev-info", "kind": "titan_exec.policy_applied", "severity": "info", "time": "2026-11-22T07:51:00.1Z"},
+                ]
+            },
+            "titan_exec_events": {"events": [{"ts_ns": 1, "pid": 4076, "comm": "hardred-probe", "rule_id": "TITAN.EXEC_DENIED", "action": 2}]},
+            "worker_guard": {"counters": {"events": 3}},
+            "styx": {"kernel_health": {"PolicyDrops": 3}},
+        }
+        verdict = diff_snapshots(before, after, "2026-11-22T07:51:00Z")
+        self.assertFalse(verdict.detected)
+        self.assertEqual(verdict.raw_alerts, [])
+
+    def test_detects_real_malware_and_exec_denials(self) -> None:
+        before = {
+            "status": {"events": []},
+            "titan_exec_events": {"events": []},
+        }
+        after = {
+            "status": {"events": [{"id": "ev-new", "kind": "malware.execution_blocked", "severity": "critical", "time": "2026-11-22T07:51:01Z"}]},
+            "titan_exec_events": {"events": [{"ts_ns": 2, "pid": 5123, "comm": "payload", "rule_id": "TITAN.EXEC_DENIED", "action": 2}]},
+        }
+        verdict = diff_snapshots(before, after, "2026-11-22T07:51:00Z")
+        self.assertTrue(verdict.detected)
+        self.assertEqual(verdict.context_maturity, 3)
+
+    def test_remote_snapshot_script_executes_without_scoping_errors(self) -> None:
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        import os
+        import subprocess
+        import sys
+        import threading
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                body = b"[]" if ("attack-stories" in self.path or "responses" in self.path) else b'{"ok": true}'
+                self.wfile.write(body)
+
+            def log_message(self, format: str, *args: object) -> None:
+                return
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        t = threading.Thread(target=srv.serve_forever, daemon=True)
+        t.start()
+        try:
+            script = _REMOTE_SNAPSHOT_PY.replace(
+                'subprocess.check_output(\n    ["sudo", "cat", "/var/lib/vgt/gedefense-access/dashboard.token"], text=True\n).strip()',
+                '"test-token"',
+            )
+            env = {**os.environ, "GD_API_PORT": str(srv.server_port)}
+            proc = subprocess.run([sys.executable, "-"], input=script, capture_output=True, text=True, env=env, timeout=10, check=True)
+            parsed = json.loads(proc.stdout.strip().splitlines()[-1])
+            self.assertEqual(parsed["status"], {"ok": True})
+            self.assertEqual(parsed["attack_stories"], [])
+        finally:
+            srv.shutdown()
+            srv.server_close()
 
 
 if __name__ == "__main__":

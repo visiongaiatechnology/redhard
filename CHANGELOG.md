@@ -2,6 +2,14 @@
 
 All notable changes to the **VGT HardRed** Linux Security Benchmark Suite are documented in this file.
 
+## [1.0.1] — 2026-11-22
+
+### Fixed
+- **Go Network/WAF Probe (`hardred-netbench`):** Replaced locale-sensitive substring checks for refused connections with OS-error matching (`syscall.ECONNREFUSED`), added per-attempt `SetDeadline` timeouts and early-abort handling for SSH brute-force floods so throttled targets do not stall the benchmark.
+- **Adapter Event & State Isolation (`gedefense`, `crowdsec`):** Preserved baseline HTTP keep-alive connections cleanly, isolated HTTP `429` rate-limit handling from genuine baseline unavailability, ignored non-blocking `titan_exec.policy_applied` telemetry events, filtered alerts/chains cleanly across attack phases via `chain_id` diffing (GeDefense) and alert ID isolation (CrowdSec).
+- **WAF, Endpoint, Malware & Compliance Runners:** Batched strike/state resets cleanly in `waf_runner`, halted GoTestWAF early on active IP/rate bans instead of burning full timeouts, added StyX settle and OpenSSH kill-code handling in `endpoint_runner`, aligned `chmod 755` UMASK parity in `malware_runner`, and wrapped `lynis` `cd` execution inside `sudo /bin/sh -c` in `compliance_runner`.
+- **CLI & Unit Tests:** Updated orchestration helpers in `vgt_hardred/cli.py` and expanded regression coverage in `tests/test_hardred.py` and `probes/cmd/hardred-netbench/main_test.go`.
+
 ## [1.0.0] — 2026-11-21
 
 ### Added

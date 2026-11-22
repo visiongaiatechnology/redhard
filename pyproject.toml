@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vgt-hardred"
-version = "1.0.0"
+version = "1.0.1"
 description = "VGT HardRed (RedHard) — Experimental Full-Stack Linux Security Benchmark & 4-Axis Evaluation Suite"
 readme = "README.md"
 license = { text = "AGPL-3.0-only" }

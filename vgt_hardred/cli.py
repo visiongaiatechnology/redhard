@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -99,6 +100,7 @@ def run_contender_suite(
 
     # 4) Perf benchmark on clean unbanned IP (after clearing any WAF IP block)
     adapter.clear_attacker_blocks()
+    time.sleep(0.5)
     perf = run_perf_domain(vm, adapter, netbench_bin, hardening_idx, lsm_active)
     adapter.clear_attacker_blocks()
 
@@ -108,7 +110,7 @@ def run_contender_suite(
     extra_meta["netids"] = net_meta
 
     adapter.clear_attacker_blocks()
-    extra_meta["waf"] = run_gotestwaf_corpus(vm, results_dir, gotestwaf_bin)
+    extra_meta["waf"] = run_gotestwaf_corpus(vm, results_dir, gotestwaf_bin, adapter=adapter)
 
     ended_utc = datetime.now(timezone.utc).isoformat()
     scorecard = score_contender(

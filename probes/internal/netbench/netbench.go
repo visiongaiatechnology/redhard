@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -517,16 +518,31 @@ func RunSSHSpray(opts SSHSprayOptions) (*SSHSprayResult, error) {
 	}
 	authMethods = append(authMethods, ssh.Password("HardRedInvalidPass!2026"))
 
+	consecutiveDrops := 0
 	for i := 0; i < opts.Attempts; i++ {
 		user := fmt.Sprintf("%s%02d", prefix, i)
 		aStart := time.Now()
-		cfg := &ssh.ClientConfig{
-			User:            user,
-			Auth:            authMethods,
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-			Timeout:         timeout,
+		rawConn, dErr := net.DialTimeout("tcp", opts.Addr, timeout)
+		var client *ssh.Client
+		var err error
+		if dErr != nil {
+			err = dErr
+		} else {
+			_ = rawConn.SetDeadline(time.Now().Add(timeout))
+			cfg := &ssh.ClientConfig{
+				User:            user,
+				Auth:            authMethods,
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+				Timeout:         timeout,
+			}
+			c, chans, reqs, hErr := ssh.NewClientConn(rawConn, opts.Addr, cfg)
+			if hErr != nil {
+				_ = rawConn.Close()
+				err = hErr
+			} else {
+				client = ssh.NewClient(c, chans, reqs)
+			}
 		}
-		client, err := ssh.Dial("tcp", opts.Addr, cfg)
 		elapsed := round3(float64(time.Since(aStart).Microseconds()) / 1000.0)
 		ao := SSHAttemptOutcome{
 			Idx:       i,
@@ -536,6 +552,7 @@ func RunSSHSpray(opts SSHSprayOptions) (*SSHSprayResult, error) {
 		if err == nil {
 			_ = client.Close()
 			ao.Outcome = "unexpected_auth_success"
+			consecutiveDrops = 0
 		} else {
 			errMsg := err.Error()
 			ao.Error = errMsg
@@ -543,24 +560,42 @@ func RunSSHSpray(opts SSHSprayOptions) (*SSHSprayResult, error) {
 			case strings.Contains(errMsg, "unable to authenticate"):
 				ao.Outcome = "auth_failed"
 				res.AuthFailed++
+				consecutiveDrops = 0
 			case isTimeoutError(err):
 				ao.Outcome = "timeout"
 				res.Timeouts++
+				consecutiveDrops++
 				if res.FirstDropIdx == -1 {
 					res.FirstDropIdx = i
 				}
 			case isRefusedError(err):
 				ao.Outcome = "tcp_refused"
 				res.TCPRefused++
+				consecutiveDrops++
 				if res.FirstDropIdx == -1 {
 					res.FirstDropIdx = i
 				}
 			default:
 				ao.Outcome = "other_error"
 				res.OtherErrors++
+				// Treat dropped/reset SSH handshakes before auth as dropped connectivity too.
+				low := strings.ToLower(errMsg)
+				if strings.Contains(low, "eof") || strings.Contains(low, "reset") || strings.Contains(low, "handshake") {
+					consecutiveDrops++
+					if res.FirstDropIdx == -1 {
+						res.FirstDropIdx = i
+					}
+				} else {
+					consecutiveDrops = 0
+				}
 			}
 		}
 		res.Results = append(res.Results, ao)
+
+		// Stop early once sustained packet/TCP drops prove an active ban (saves N * TimeoutMs).
+		if consecutiveDrops >= 4 {
+			break
+		}
 
 		if opts.DelayMs > 0 && i+1 < opts.Attempts {
 			time.Sleep(time.Duration(opts.DelayMs) * time.Millisecond)
@@ -614,8 +649,11 @@ func isTimeoutError(err error) bool {
 }
 
 func isRefusedError(err error) bool {
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return true
+	}
 	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "connection refused") || strings.Contains(msg, "actively refused")
+	return strings.Contains(msg, "connection refused") || strings.Contains(msg, "actively refused") || strings.Contains(msg, "verweigerte")
 }
 
 func round3(v float64) float64 {

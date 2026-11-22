@@ -7,7 +7,7 @@
 
 [![License](https://img.shields.io/badge/License-AGPL--3.0--only-blue?style=for-the-badge)](LICENSE)
 [![Third-Party](https://img.shields.io/badge/Third--Party-OSI_Upstream_Suites-0A7E8C?style=for-the-badge)](THIRD_PARTY_NOTICES.md)
-[![Version](https://img.shields.io/badge/Version-1.0.0-orange?style=for-the-badge)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-1.0.1-orange?style=for-the-badge)](CHANGELOG.md)
 [![Status](https://img.shields.io/badge/Status-Experimental_Benchmark_Suite-blueviolet?style=for-the-badge)](#-experimental-benchmark-disclaimer)
 [![Target](https://img.shields.io/badge/Target-Linux_x86__64_(Kernel_6.x%2F7.x)-lightgrey?style=for-the-badge&logo=linux)](#-dual-plane-isolation-architecture)
 [![Orchestrator](https://img.shields.io/badge/Orchestrator-Python_3.11%2B_(Zero--Dep)-3776AB?style=for-the-badge&logo=python)](#-quick-start--installation)
@@ -327,7 +327,7 @@ redhard/
 ├── README.zh.md                    # Simplified Chinese documentation (中文)
 ├── SECURITY.md                     # Responsible use & vulnerability reporting policy
 ├── THIRD_PARTY_NOTICES.md          # Complete third-party attribution & license ledger
-├── VERSION                         # Release version (1.0.0)
+├── VERSION                         # Release version (1.0.1)
 └── pyproject.toml                  # Python package manifest
 ```
 
