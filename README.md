@@ -55,7 +55,7 @@ Evaluated with the open-source **[VGT HardRed (`RedHard`)](https://github.com/vi
 
 | Rank | Security Contender | Overall (0–100) | Axis 1: Efficacy | Axis 2: FP Resilience | Axis 3: Latency & Containment | Axis 4: Overhead | Gate |
 |---:|---|---:|---:|---:|---:|---:|---|
-| 1 | **GeDefense Linux 6.2.0 (`Max-Hardness`)** | **86.16** | **80.49** | **100.00** | **78.07** | **95.53** | **`PASS`** |
+| 1 | **[GeDefense Linux 6.2.0](https://github.com/visiongaiatechnology/gedefense) (`Max-Hardness`)** | **86.16** | **80.49** | **100.00** | **78.07** | **95.53** | **`PASS`** |
 | 2 | **Wazuh (`Max Rules + FIM + Auditd + Active Response`)** | **46.29** | 31.74 | 69.23 | 22.14 | 91.53 | `CONDITIONAL` |
 | Ref | **Baseline (`Clean Ubuntu HWE 7.0 WebStack`)** | **45.82** | 16.94 | 100.00 | 15.97 | 100.00 | `CONDITIONAL` |
 | 3 | **CrowdSec (`Max Collections + Bouncers + AppSec WAF`)** | **35.83** | 42.89 | 0.00 | 28.38 | 72.37 | `FAIL` |
