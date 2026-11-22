@@ -49,7 +49,8 @@ Die Bewertung von Linux-Sicherheitssoftware war bisher stark fragmentiert:
 
 ---
 
-## 📊 VGT HardRed Benchmark — Bewertung V6.2.0
+## 📊 VGT HardRed Benchmark — Erster Lauf V1.0.1
+[Alle aktuellen Benchmarks klicke hier](https://github.com/visiongaiatechnology/redhard/tree/main/first-run-benachmarks)
 
 Bewertet mit dem Open-Source-Benchmark **[VGT HardRed (`RedHard`)](https://github.com/visiongaiatechnology/redhard)** für Multi-Domain-Linux-Sicherheit auf einer sauberen, snapshot-isolierten Ziel-VM **Ubuntu 24.04 (Linux HWE 7.0, NGINX + PHP 8.3-FPM)** (`eth0` Out-of-band-Kontrollplane, `eth1` nicht auf der Allowlist stehende Host-only-Angriffsfläche; 4-Achsen-Modell: Wirksamkeit 45 % · FP-Resilienz 20 % · Latenz & Eindämmung 20 % · Overhead 15 %):
 
