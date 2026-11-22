@@ -49,6 +49,38 @@ Die Bewertung von Linux-Sicherheitssoftware war bisher stark fragmentiert:
 
 ---
 
+## 📊 VGT HardRed Benchmark — Bewertung V6.2.0
+
+Bewertet mit dem Open-Source-Benchmark **[VGT HardRed (`RedHard`)](https://github.com/visiongaiatechnology/redhard)** für Multi-Domain-Linux-Sicherheit auf einer sauberen, snapshot-isolierten Ziel-VM **Ubuntu 24.04 (Linux HWE 7.0, NGINX + PHP 8.3-FPM)** (`eth0` Out-of-band-Kontrollplane, `eth1` nicht auf der Allowlist stehende Host-only-Angriffsfläche; 4-Achsen-Modell: Wirksamkeit 45 % · FP-Resilienz 20 % · Latenz & Eindämmung 20 % · Overhead 15 %):
+
+| Rang | Sicherheits-Kandidat | Gesamt (0–100) | Achse 1: Wirksamkeit | Achse 2: FP-Resilienz | Achse 3: Latenz & Eindämmung | Achse 4: Overhead | Gate |
+|---:|---|---:|---:|---:|---:|---:|---|
+| 1 | **[GeDefense Linux 6.2.0](https://github.com/visiongaiatechnology/gedefense) (`Max-Hardness`)** | **86.16** | **80.49** | **100.00** | **78.07** | **95.53** | **`PASS`** |
+| 2 | **Wazuh (`Max Rules + FIM + Auditd + Active Response`)** | **46.29** | 31.74 | 69.23 | 22.14 | 91.53 | `CONDITIONAL` |
+| Ref | **Baseline (`Clean Ubuntu HWE 7.0 WebStack`)** | **45.82** | 16.94 | 100.00 | 15.97 | 100.00 | `CONDITIONAL` |
+| 3 | **CrowdSec (`Max Collections + Bouncers + AppSec WAF`)** | **35.83** | 42.89 | 0.00 | 28.38 | 72.37 | `FAIL` |
+
+### GeDefense 6.2.0 — Domänen- & Performance-Aufschlüsselung
+
+| Domäne | Detection-TPR | Prevention-TPR | Det-/Prot-FPR | Kontext (0–3) | Median-TTFA | Domänen-Score | Zentrale Laufzeit-Metrik |
+|---|---:|---:|---:|---:|---:|---:|---|
+| `hardred-waf` | 100,0 % | 100,0 % | 0,0 % / 0,0 % | 3,00 | 250,0 ms | **100,0** | 0/8 Benign-FPs; HTTP `403` inline an der Edge |
+| `hardred-netids` | 100,0 % | 100,0 % | 0,0 % / 0,0 % | 2,50 | 175,9 ms | **98,3** | XDP/Kinetic verwirft HTTP-Flood, SSH-Spray & Portscan |
+| `hardred-compliance` | 100,0 % | 86,0 % | 0,0 % / 0,0 % | 3,00 | — | **86,0** | Lynis Hardening Index `71` (Baseline `63`); 8 aktive LSMs inkl. `bpf` |
+| `hardred-malware` | 100,0 % | 33,3 % | 0,0 % / 0,0 % | 1,67 | 250,0 ms | **65,6** | HTTP-EICAR `403` + Host `FAN_CLOSE_WRITE` & Ausführungsblock |
+| `hardred-endpoint` | 53,3 % | 53,3 % | 0,0 % / 0,0 % | 2,11 | 250,0 ms | **59,0** | **Schadensquote `18.1%`** (Baseline `100.0%`): Ransomware-Freeze & `memfd`/`/tmp`-Ausführung verweigert |
+
+- **Gemessener System-Overhead (`03d-gedefense-6.2.0-max-bench` vs. saubere Baseline):** `730,7` HTTP-RPS (`8,74 ms` p50 · **`17,99 ms` p95** vs. `21,23 ms` Baseline) · `90.420,3` Sysbench-EPS · `245,2` FIO-IOPS · **`83,3 MiB`** Security-RSS · **`4,3 %`** Security-CPU.
+
+> [!NOTE]
+> **Umgebungsvarianz & Engineering-Transparenz:** Benchmark-Zahlen schwanken naturgemäß je nach Linux-Kernel-Release und aktiven LSM-Boot-Flags (`lsm=...,bpf`), CPU-/I-O-Hardware, Netzwerktopologie, kundenspezifischen Workload-Allowlists (zum Beispiel externen Payment-/API-Egress-Zielen, die produktive PHP-/Node-Apps benötigen) und Test-Harness-Versionen. Frühere 6.1.2/6.2.0-Testläufe haben zudem echte Fehler und offene Lücken aufgedeckt — darunter die Filterung von Nicht-Root-Schreibern im On-Write-Scanner, eine 1-Sekunden-Drain-Latenz des Ransomware-Rings (reduziert auf 100 ms), fehlende Login-/Account-Management-Binaries in der Credential-Guard-Allowlist, Rust-`HARDENING_SET`-Vokabular-Parität für `astraeaos-cis-l1` und StyX-Cold-Start-cgroup-Drift — all das wurde in GeDefense 6.2.0 sauber behoben, um den Realwelt-Schutz unabhängig von einem Benchmark zu stärken.
+
+---
+
+
+
+
+
 ## 2. Dual-Plane-Isolationsarchitektur
 
 Ein klassischer Designfehler automatisierter Security-Benchmarks ist der **Selbst-Lockout**: Sobald ein IPS, XDP-Filter oder Firewall-Bouncer die Angreifer-IP während eines Portscans oder WAF-Tests sperrt, verliert der Test-Runner seine SSH-Verbindung und kann weder Telemetrie auslesen noch Folgetests starten.
