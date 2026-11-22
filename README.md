@@ -1,6 +1,7 @@
 <div align="center">
 
-<img width="536" height="324" alt="VGT Redhard Security Benchmark Logo" src="https://github.com/user-attachments/assets/e1410a73-c411-4548-b4d6-d0889df7b70c" />
+<img width="536" height="324" alt="REDHARD_logo_transparent" src="https://github.com/user-attachments/assets/6f1f2848-7c47-44f1-8519-e9dc34689921" />
+
 
 
 # VGT HardRed (`RedHard`)
