@@ -7,7 +7,7 @@
 
 [![License](https://img.shields.io/badge/License-AGPL--3.0--only-blue?style=for-the-badge)](LICENSE)
 [![Third-Party](https://img.shields.io/badge/Third--Party-OSI_Upstream_Suites-0A7E8C?style=for-the-badge)](THIRD_PARTY_NOTICES.md)
-[![Version](https://img.shields.io/badge/Version-1.0.1-orange?style=for-the-badge)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-1.1.0-orange?style=for-the-badge)](CHANGELOG.md)
 [![Status](https://img.shields.io/badge/Status-Experimental_Benchmark_Suite-blueviolet?style=for-the-badge)](#️-hinweis--disclaimer-experimenteller-kombinations-benchmark)
 [![Target](https://img.shields.io/badge/Target-Linux_x86__64_(Kernel_6.x%2F7.x)-lightgrey?style=for-the-badge&logo=linux)](#-2-dual-plane-isolationsarchitektur)
 [![Orchestrator](https://img.shields.io/badge/Orchestrator-Python_3.11%2B_(Zero--Dep)-3776AB?style=for-the-badge&logo=python)](#-6-schnellstart--installation)
@@ -46,6 +46,26 @@ Die Bewertung von Linux-Sicherheitssoftware war bisher stark fragmentiert:
 - **Compliance & System-Overhead** (`Lynis`, `sysbench`, `fio`, HTTP-`p95`/`p99`-Latenz, Daemon-RSS/CPU) werden getrennt von aktiver Angriffsabwehr betrachtet.
 
 **VGT HardRed (`RedHard`)** führt alle sechs Ebenen in einer **einzigen, herstellerunabhängigen, Snapshot-basierten Benchmark-Suite** zusammen. Jedes getestete Sicherheitssystem (`SUT`) wird gegen exakt dasselbe Betriebssystem-Abbild, denselben Kernel, denselben Web-Stack, dieselben Angriffsvektoren, dieselben benignen False-Positive-Kontrollen und dieselbe Last geprüft.
+
+> **Öffentliches Standard-Release `1.1.0`:** Enthält sämtliche sicheren Core-, Taktkalibrierungs-, Telemetrie-, `BLOCKED_INODE`-Malware-, Scoring-, `--resume`-Checkpoint- und Adapter-Bugfixes aus unserer internen V1.3 — sodass aktuelle Stacks (einschließlich **GeDefense Linux `6.3.0`**) sauber gegen alle Standard-Domänen (`S01`–`S15`) geprüft werden können.
+
+---
+
+## 🔒 Was macht VGT HardRed `V1.3` (`ARES` & `Anti-Spyware S16–S20`) — und warum ist sie nicht öffentlich?
+
+Unsere interne **V1.3** erweitert die Standard-Suite um zwei besonders sensible Prüfmodule, die **bewusst nicht öffentlich im GitHub-Repository bereitgestellt werden**:
+
+1. **Anti-Spyware- & Anti-Rootkit-Modul (`S16`–`S20`):** Prüft Resilienz gegen versteckte Kernel-/eBPF-Implantate und gefährliche Helper-Calls (`S16`), asynchrone Syscall-Umgehung über `io_uring` (`S17`), Credential- und Prozessspeicher-Zugriffe (`S18`), Cross-View-Abgleiche zwischen Kernel-Iteratoren und `/proc` (`S19`) sowie Selbstschutz/Evidence-Integrität unter Log-DoS und Feed-Manipulation (`S20`).
+2. **REDHARD `ARES` (Adaptive Red-Team Evaluation System):** Multi-Seed-Adversarial-Engine für adaptive mehrstufige Red-/Blue-/Purple-Angriffsketten über *Design Resilience* (`R1`–`R12`), *Runtime Resilience*, *Adaptive Adversarial Resilience*, Selbstschutz und Source-Code-Zitationsprüfung (`E1`).
+
+> [!WARNING]
+> **Warum `V1.3` (`ARES` & `Anti-Spyware`) unter Verschluss bleibt:**  
+> Im Gegensatz zu klassischen WAF-/Compliance-Tests enthalten diese Module aktive Kernel-/eBPF-Trigger-Sonden, `io_uring`-Evasionsketten, Credential-/Memory-Angriffsvektoren und adaptive mehrstufige Exploit-Logik. Eine unkontrollierte Veröffentlichung würde ein zu hohes Missbrauchs- und Dual-Use-Risiko darstellen.
+
+### Zugang für verifizierte Sicherheitsforscher & Pentester
+Sicherheitsforscher, Blue-/Red-Teams und Penetration-Tester mit **nachweisbarer Reputation** können die vollständige **V1.3** (inklusive `ARES` und Anti-Spyware-Modul) für autorisierte Evaluierungen anfragen:
+- **Über ein GitHub Issue:** Stellen Sie eine kurze Kontaktanfrage über **[GitHub Issues](https://github.com/visiongaiatechnology/redhard/issues)** (keine sensiblen Ausweis- oder Kontaktdaten öffentlich posten — die weitere Verifikation erfolgt geschützt), **oder**
+- **Direkt verschlüsselt:** Über das verschlüsselte Kontaktformular auf **[https://visiongaiatechnology.de](https://visiongaiatechnology.de)**.
 
 ---
 
@@ -360,7 +380,7 @@ redhard/
 ├── README.zh.md                    # Chinesische Dokumentation (中文)
 ├── SECURITY.md                     # Richtlinie für verantwortungsvolle Nutzung & Schwachstellenmeldung
 ├── THIRD_PARTY_NOTICES.md          # Vollständiges Drittanbieter- & Lizenzverzeichnis
-├── VERSION                         # Release-Version (1.0.1)
+├── VERSION                         # Release-Version (1.1.0)
 └── pyproject.toml                  # Python-Paketmanifest
 ```
 

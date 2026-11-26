@@ -7,7 +7,14 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from vgt_hardred.adapters.base import AdapterCursor, TelemetryVerdict, compute_context_maturity, parse_iso_utc
+from vgt_hardred.adapters.base import (
+    AdapterCursor,
+    TelemetryVerdict,
+    compute_context_maturity,
+    compute_event_ttfa_ms,
+    effective_t0_epoch,
+    parse_iso_utc,
+)
 from vgt_hardred.models import GroundTruthCase
 from vgt_hardred.vm_control import VMController
 
@@ -71,6 +78,7 @@ class WazuhAdapter:
 
     def prepare(self) -> None:
         self.vm.ensure_sandboxes()
+        self.vm.measure_clock_offset(force_refresh=True)
 
     def clear_attacker_blocks(self) -> None:
         self.vm.ssh(
@@ -80,6 +88,7 @@ class WazuhAdapter:
         )
 
     def capture_cursor(self) -> AdapterCursor:
+        vm_off = self.vm.clock_offset()
         rc, out, _ = self.vm.ssh("sudo python3 -", timeout_sec=15, stdin_text=_REMOTE_WZ_OFFSET_PY)
         state = {"alerts_size": 0, "ar_size": 0}
         if rc == 0 and out.strip():
@@ -87,7 +96,11 @@ class WazuhAdapter:
                 state = json.loads(out.strip().splitlines()[-1])
             except Exception:
                 pass
-        return AdapterCursor(captured_utc=datetime.now(timezone.utc).isoformat(), state=state)
+        return AdapterCursor(
+            captured_utc=datetime.now(timezone.utc).isoformat(),
+            state=state,
+            vm_clock_offset=vm_off,
+        )
 
     def collect_since(
         self,
@@ -114,7 +127,7 @@ class WazuhAdapter:
             except Exception:
                 pass
 
-        t0_epoch = parse_iso_utc(started_utc) or 0.0
+        t0_epoch = effective_t0_epoch(started_utc, cursor)
         matched: list[dict[str, Any]] = []
         ttfa_candidates: list[float] = []
         has_rich_corr = False
@@ -150,8 +163,9 @@ class WazuhAdapter:
                 "pid": ((ev.get("data") or {}).get("audit") or {}).get("pid", ""),
             })
             ts = parse_iso_utc(ev.get("timestamp"))
-            if ts and ts >= t0_epoch:
-                ttfa_candidates.append(max(1.0, (ts - t0_epoch) * 1000.0))
+            ttfa_val = compute_event_ttfa_ms(ts, t0_epoch, jitter_grace_sec=0.020)
+            if ttfa_val is not None:
+                ttfa_candidates.append(ttfa_val)
 
         for ar in ar_lines:
             matched.append({"sensor": "wazuh-active-response", "rule_id": "WAZUH.ACTIVE_RESPONSE", "detail": ar})

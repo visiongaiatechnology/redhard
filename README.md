@@ -9,7 +9,7 @@
 
 [![License](https://img.shields.io/badge/License-AGPL--3.0--only-blue?style=for-the-badge)](LICENSE)
 [![Third-Party](https://img.shields.io/badge/Third--Party-OSI_Upstream_Suites-0A7E8C?style=for-the-badge)](THIRD_PARTY_NOTICES.md)
-[![Version](https://img.shields.io/badge/Version-1.0.1-orange?style=for-the-badge)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-1.1.0-orange?style=for-the-badge)](CHANGELOG.md)
 [![Status](https://img.shields.io/badge/Status-Experimental_Benchmark_Suite-blueviolet?style=for-the-badge)](#-experimental-benchmark-disclaimer)
 [![Target](https://img.shields.io/badge/Target-Linux_x86__64_(Kernel_6.x%2F7.x)-lightgrey?style=for-the-badge&logo=linux)](#-dual-plane-isolation-architecture)
 [![Orchestrator](https://img.shields.io/badge/Orchestrator-Python_3.11%2B_(Zero--Dep)-3776AB?style=for-the-badge&logo=python)](#-quick-start--installation)
@@ -48,6 +48,26 @@ Evaluating Linux security software in the real world is historically fragmented:
 - **Compliance & Performance** (`Lynis`, `sysbench`, `fio`, HTTP `p95`/`p99` latency, daemon RSS/CPU) are measured in separate benchmarks disconnected from active attack mitigation.
 
 **VGT HardRed (`RedHard`)** unifies all six layers into a **single, vendor-neutral, snapshot-restored benchmark harness**. Every security system under test (`SUT`) faces the exact same OS image, kernel, web stack, attack vectors, benign false-positive controls, and hardware workload.
+
+> **Version `1.1.0` Public Standard Release:** Includes all core clock-calibration, telemetry-diffing, malware-inode (`BLOCKED_INODE`), `expected_prevention` scoring, `--resume` checkpointing, and contender adapter fixes backported cleanly from internal V1.3 so modern stacks (including **GeDefense Linux `6.3.0`**) can be evaluated reliably across all `S01`–`S15` standard domains.
+
+---
+
+## 🔒 What About V1.3 (`ARES` & `Anti-Spyware S16–S20`)? — Responsible Access Policy
+
+Internal **VGT HardRed `1.3`** extends the standard benchmark with two sensitive evaluation engines that are **deliberately excluded from this public repository**:
+
+1. **`Anti-Spyware & Anti-Rootkit Module (S16–S20)`:** Evaluates kernel/eBPF extension & hidden LKM resilience (`S16`), asynchronous syscall/`io_uring` evasion detection (`S17`), credential & process memory dumping (`S18`), kernel-vs-`/proc` cross-view discrepancy detection (`S19`), and sensor/agent/evidence integrity under Log-DoS and feed tampering (`S20`).
+2. **`REDHARD ARES` (Adaptive Red-Team Evaluation System):** Multi-seed adversarial orchestration testing adaptive multi-stage Red/Blue/Purple kill-chains across Design Resilience (`R1`–`R12`), Runtime Resilience, Adaptive Adversarial Resilience, Self-Protection, and live source-code citation verification (`E1`).
+
+> [!WARNING]
+> **Why `V1.3` (`ARES` & `Anti-Spyware`) Is Not Public:**  
+> Unlike conventional web/compliance probes, V1.3 contains live kernel/eBPF rootkit trigger probes, `io_uring` evasion mechanics, process/credential access vectors, and adaptive multi-stage offensive chain engines. Publishing this code unrestrictedly on GitHub would create a high dual-use risk for malicious weaponization.
+
+### How Vetted Security Researchers & Pentesters Can Request V1.3
+Security researchers, blue/red teams, and penetration testers with **verifiable reputation** can request access to the full **VGT HardRed `1.3`** suite (including `ARES` and the `Anti-Spyware` module) for defensive testing and independent verification:
+- **GitHub Issue:** Open a brief access inquiry via **[GitHub Issues](https://github.com/visiongaiatechnology/redhard/issues)** (do not post private identity documents or secrets publicly — we will coordinate a confidential channel), **or**
+- **Encrypted Contact Form:** Write directly via the encrypted contact form at **[https://visiongaiatechnology.de](https://visiongaiatechnology.de)**.
 
 ---
 
@@ -359,7 +379,7 @@ redhard/
 ├── README.zh.md                    # Simplified Chinese documentation (中文)
 ├── SECURITY.md                     # Responsible use & vulnerability reporting policy
 ├── THIRD_PARTY_NOTICES.md          # Complete third-party attribution & license ledger
-├── VERSION                         # Release version (1.0.1)
+├── VERSION                         # Release version (1.1.0)
 └── pyproject.toml                  # Python package manifest
 ```
 

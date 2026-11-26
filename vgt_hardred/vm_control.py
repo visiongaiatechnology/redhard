@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import posixpath
 import re
@@ -13,7 +14,7 @@ from pathlib import Path
 from vgt_hardred.errors import SecurityBoundaryError, TransportError, ValidationError
 
 _SNAPSHOT_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
-_SERVICE_RE = re.compile(r"^[A-Za-z0-9_.@-]{1,64}$")
+_SERVICE_RE = re.compile(r"^[A-Za-z0-9_.@:-]{1,64}$")
 _SAFE_REMOTE_PREFIXES = ("/tmp/hardred-work", "/tmp/hardred-sandbox", "/dev/shm/hardred-sandbox")
 
 
@@ -50,6 +51,7 @@ class VMConfig:
     remote_work_dir: str
     sandbox_root: str
     shm_sandbox_root: str
+    attacker_source_ip: str = "192.168.56.1"
 
     @classmethod
     def from_dict(cls, data: dict) -> VMConfig:
@@ -90,6 +92,7 @@ class VMConfig:
             remote_work_dir=posixpath.normpath(data["remote_work_dir"]),
             sandbox_root=posixpath.normpath(data["sandbox_root"]),
             shm_sandbox_root=posixpath.normpath(data["shm_sandbox_root"]),
+            attacker_source_ip=str(data.get("attacker_source_ip") or "192.168.56.1"),
         )
 
 
@@ -98,6 +101,182 @@ class VMController:
 
     def __init__(self, cfg: VMConfig) -> None:
         self.cfg = cfg
+        self._clock_offset: float | None = None
+        self._clock_offset_rtt_ms: float | None = None
+        self._clock_offset_at: float = 0.0
+
+    def _invalidate_clock_offset(self) -> None:
+        self._clock_offset = None
+        self._clock_offset_rtt_ms = None
+        self._clock_offset_at = 0.0
+
+    def _measure_clock_offset_pipe(self, pings: int = 5) -> float | None:
+        """Open one persistent SSH stdio channel and ping over it (<3ms RTT, zero handshake skew)."""
+        if os.environ.get("VGT_HARDRED_DISABLE_PIPE_CLOCK"):
+            return None
+        py_remote = (
+            "import sys, time\n"
+            "print('READY', flush=True)\n"
+            "for line in sys.stdin:\n"
+            "    print(f'{time.time():.6f}', flush=True)\n"
+        )
+        args = [
+            self.cfg.ssh_exe,
+            "-T",
+            "-i",
+            self.cfg.ssh_key,
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
+            "-p",
+            str(self.cfg.control_port),
+            f"{self.cfg.control_user}@{self.cfg.control_host}",
+            "python3 -u -c " + _shell_quote(py_remote),
+        ]
+        try:
+            proc = subprocess.Popen(
+                args,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+        except OSError:
+            return None
+
+        best_rtt: float | None = None
+        best_offset: float | None = None
+        try:
+            assert proc.stdout is not None and proc.stdin is not None
+            ready = proc.stdout.readline()
+            if "READY" not in ready:
+                return None
+            for _ in range(max(1, min(pings, 9))):
+                host_t0 = time.time()
+                mono_0 = time.perf_counter()
+                proc.stdin.write("P\n")
+                proc.stdin.flush()
+                line = proc.stdout.readline()
+                mono_1 = time.perf_counter()
+                if not line:
+                    break
+                try:
+                    vm_epoch = float(line.strip())
+                except ValueError:
+                    continue
+                rtt = max(0.0, mono_1 - mono_0)
+                host_mid = host_t0 + (rtt / 2.0)
+                offset = vm_epoch - host_mid
+                if best_rtt is None or rtt < best_rtt:
+                    best_rtt = rtt
+                    best_offset = offset
+            try:
+                proc.stdin.close()
+            except Exception:
+                pass
+            proc.wait(timeout=3)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            return None
+
+        if best_offset is not None and best_rtt is not None:
+            self._clock_offset = best_offset
+            self._clock_offset_rtt_ms = round(best_rtt * 1000.0, 2)
+            self._clock_offset_at = time.monotonic()
+            return best_offset
+        return None
+
+    def measure_clock_offset(
+        self,
+        samples: int = 3,
+        force_refresh: bool = False,
+        max_age_sec: float = 20.0,
+    ) -> float:
+        """Estimate (vm_epoch - host_epoch) via symmetric min-RTT NTP midpoint calibration."""
+        now_mono = time.monotonic()
+        if (
+            not force_refresh
+            and self._clock_offset is not None
+            and (now_mono - self._clock_offset_at) < max_age_sec
+        ):
+            return self._clock_offset
+
+        # Prefer persistent open-pipe ping when ssh() is unpatched so SSH handshake latency causes zero bias.
+        if getattr(self.ssh, "__func__", None) is VMController.ssh:
+            pipe_off = self._measure_clock_offset_pipe(pings=max(5, int(samples)))
+            if pipe_off is not None:
+                return pipe_off
+
+        best_rtt: float | None = None
+        best_offset: float | None = None
+        count = max(1, min(int(samples), 7))
+        for _ in range(count):
+            host_t0 = time.time()
+            mono_0 = time.perf_counter()
+            try:
+                rc, out, _ = self.ssh("python3 -c 'import time; print(f\"{time.time():.6f}\")'", timeout_sec=10)
+            except TransportError:
+                continue
+            mono_1 = time.perf_counter()
+            if rc != 0 or not out.strip():
+                continue
+            try:
+                vm_epoch = float(out.strip().splitlines()[-1])
+            except ValueError:
+                continue
+            rtt = max(0.0, mono_1 - mono_0)
+            host_mid = host_t0 + (rtt / 2.0)
+            offset = vm_epoch - host_mid
+            if best_rtt is None or rtt < best_rtt:
+                best_rtt = rtt
+                best_offset = offset
+
+        if best_offset is not None and best_rtt is not None:
+            self._clock_offset = best_offset
+            self._clock_offset_rtt_ms = round(best_rtt * 1000.0, 2)
+            self._clock_offset_at = time.monotonic()
+            return best_offset
+        return self._clock_offset if self._clock_offset is not None else 0.0
+
+    def clock_offset(self) -> float:
+        return self.measure_clock_offset()
+
+    def ssh_timed(
+        self,
+        command: str,
+        timeout_sec: int = 60,
+        stdin_text: str | None = None,
+    ) -> tuple[int, str, str, float | None]:
+        """Execute an SSH command and stamp exact VM UTC epoch right before running it."""
+        if stdin_text is not None:
+            rc, out, err = self.ssh(command, timeout_sec=timeout_sec, stdin_text=stdin_text)
+            return rc, out, err, None
+        marker = "__HARDRED_VM_T0__="
+        wrapped = (
+            f"python3 -c 'import time; print(\"{marker}\" + f\"{{time.time():.6f}}\")' && ( {command} )"
+        )
+        rc, out, err = self.ssh(wrapped, timeout_sec=timeout_sec)
+        vm_t0: float | None = None
+        cleaned: list[str] = []
+        for ln in out.splitlines():
+            if ln.startswith(marker) and vm_t0 is None:
+                try:
+                    vm_t0 = float(ln[len(marker):].strip())
+                    continue
+                except ValueError:
+                    pass
+            cleaned.append(ln)
+        return rc, "\n".join(cleaned), err, vm_t0
 
     def _run_local(self, args: list[str], timeout_sec: int = 120) -> subprocess.CompletedProcess[str]:
         try:
@@ -202,6 +381,7 @@ class VMController:
         raise TransportError(f"VM SSH failed to become ready within {max_wait_sec}s: {last_err}")
 
     def restore_and_boot_snapshot(self, snapshot_name: str, settle_sec: int = 12) -> None:
+        self._invalidate_clock_offset()
         snap = validate_snapshot_name(snapshot_name)
         vm = self.cfg.name
         # Check current VM state; power off if running so snapshot restore never races.
@@ -232,32 +412,74 @@ class VMController:
             f"&& sudo chown -R {self.cfg.control_user}:{self.cfg.control_user} {self.cfg.remote_work_dir} {self.cfg.sandbox_root} {self.cfg.shm_sandbox_root} "
             f"&& sudo chmod 755 {self.cfg.remote_work_dir} {self.cfg.sandbox_root} {self.cfg.shm_sandbox_root}"
         )
-        rc, _, err = self.ssh(cmd, timeout_sec=15)
-        if rc != 0:
-            raise TransportError(f"Failed creating remote sandboxes: {err}")
+        last_err = ""
+        for attempt in range(3):
+            try:
+                rc, _, err = self.ssh(cmd, timeout_sec=30)
+                if rc == 0:
+                    return
+                last_err = err
+            except TransportError as exc:
+                last_err = str(exc)
+            if attempt < 2:
+                time.sleep(3.0)
+        raise TransportError(f"Failed creating remote sandboxes: {last_err}")
 
     def read_process_stats(self, service_names: list[str]) -> tuple[float, float, float]:
         """Return (rss_mib, cpu_pct, system_mem_used_mib) sampled cleanly inside the VM."""
+        docker_prefixes: list[str] = []
+        host_services: list[str] = []
         for svc in service_names:
             if not _SERVICE_RE.fullmatch(svc):
                 raise ValidationError(f"Invalid service pattern: {svc!r}")
-        joined = "|".join(re.escape(s.split(".")[0]) for s in service_names)
-        py_one_liner = (
-            "import subprocess, json; "
-            "ps = subprocess.check_output(['ps', '-eo', 'pid,pcpu,rss,comm', '--no-headers'], text=True); "
-            f"import re; pat = re.compile(r'{joined}', re.I); "
-            "rss = 0; cpu = 0.0; "
-            "\nfor line in ps.splitlines():\n"
-            "  parts = line.split(None, 3)\n"
-            "  if len(parts)==4 and pat.search(parts[3]): cpu += float(parts[1]); rss += int(parts[2])\n"
-            "mem = subprocess.check_output(['free', '-m'], text=True).splitlines()[1].split(); "
-            "print(json.dumps({'rss_mib': round(rss/1024.0, 2), 'cpu_pct': round(cpu, 2), 'sys_used_mib': float(mem[2])}))"
-        )
-        rc, out, err = self.ssh(f"python3 -c { _shell_quote(py_one_liner) }", timeout_sec=15)
-        if rc != 0:
-            return 0.0, 0.0, 0.0
-        import json
+            if svc.startswith("docker:"):
+                docker_prefixes.append(svc[len("docker:"):])
+            else:
+                host_services.append(svc)
 
+        joined = "|".join(re.escape(s.split(".")[0]) for s in host_services)
+        py_script = (
+            "import subprocess, json, re\n"
+            "rss = 0.0; cpu = 0.0\n"
+        )
+        if joined:
+            py_script += (
+                "ps = subprocess.check_output(['ps', '-eo', 'pid,pcpu,rss,comm', '--no-headers'], text=True)\n"
+                f"pat = re.compile(r'{joined}', re.I)\n"
+                "for line in ps.splitlines():\n"
+                "  parts = line.split(None, 3)\n"
+                "  if len(parts) == 4 and pat.search(parts[3]):\n"
+                "    cpu += float(parts[1]); rss += int(parts[2]) / 1024.0\n"
+            )
+        if docker_prefixes:
+            pref_json = json.dumps(docker_prefixes)
+            py_script += (
+                f"prefixes = {pref_json}\n"
+                "def to_mib(val):\n"
+                "  m = re.match(r'^([0-9.]+)\\s*([A-Za-z]+)$', val.strip())\n"
+                "  if not m: return 0.0\n"
+                "  n, u = float(m.group(1)), m.group(2).lower()\n"
+                "  if u.startswith('g'): return n * 1024.0\n"
+                "  if u.startswith('m'): return n\n"
+                "  if u.startswith('k'): return n / 1024.0\n"
+                "  return n / (1024.0 * 1024.0)\n"
+                "try:\n"
+                "  ds = subprocess.check_output(['sudo', 'docker', 'stats', '--no-stream', '--format', '{{.Name}}\\t{{.CPUPerc}}\\t{{.MemUsage}}'], text=True, timeout=15)\n"
+                "  for line in ds.splitlines():\n"
+                "    cols = line.split('\\t')\n"
+                "    if len(cols) == 3 and any(cols[0].startswith(p) for p in prefixes):\n"
+                "      cpu += float(cols[1].rstrip('%') or 0.0)\n"
+                "      rss += to_mib(cols[2].split('/')[0])\n"
+                "except Exception:\n"
+                "  pass\n"
+            )
+        py_script += (
+            "mem = subprocess.check_output(['free', '-m'], text=True).splitlines()[1].split()\n"
+            "print(json.dumps({'rss_mib': round(rss, 2), 'cpu_pct': round(cpu, 2), 'sys_used_mib': float(mem[2])}))\n"
+        )
+        rc, out, err = self.ssh(f"python3 -c { _shell_quote(py_script) }", timeout_sec=25)
+        if rc != 0 or not out.strip():
+            return 0.0, 0.0, 0.0
         data = json.loads(out.strip().splitlines()[-1])
         return float(data["rss_mib"]), float(data["cpu_pct"]), float(data["sys_used_mib"])
 

@@ -7,7 +7,14 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from vgt_hardred.adapters.base import AdapterCursor, TelemetryVerdict, compute_context_maturity, parse_iso_utc
+from vgt_hardred.adapters.base import (
+    AdapterCursor,
+    TelemetryVerdict,
+    compute_context_maturity,
+    compute_event_ttfa_ms,
+    effective_t0_epoch,
+    parse_iso_utc,
+)
 from vgt_hardred.models import GroundTruthCase
 from vgt_hardred.vm_control import VMController
 
@@ -94,6 +101,8 @@ def _is_housekeeping_event(kind: str, sev: str) -> bool:
         "worker_guard.policy_applied",
     }:
         return True
+    if sev == "info" and kind in {"xdr.sbc_correlated", "xdr.bpf_guard_tolerated"}:
+        return True
     if kind.startswith((
         "feeds.",
         "chronos.",
@@ -131,6 +140,7 @@ class GeDefenseAdapter:
             snap = self._fetch_snapshot()
             st = snap.get("status")
             if isinstance(st, dict) and st.get("core_connected") is True:
+                self.vm.measure_clock_offset(force_refresh=True)
                 return
             time.sleep(2.0)
 
@@ -164,8 +174,13 @@ for b in (st.get("blocks") or []):
             return {"_parse_error": str(exc)}
 
     def capture_cursor(self) -> AdapterCursor:
+        vm_off = self.vm.clock_offset()
         snap = self._fetch_snapshot()
-        return AdapterCursor(captured_utc=datetime.now(timezone.utc).isoformat(), state=snap)
+        return AdapterCursor(
+            captured_utc=datetime.now(timezone.utc).isoformat(),
+            state=snap,
+            vm_clock_offset=vm_off,
+        )
 
     def collect_since(
         self,
@@ -177,7 +192,13 @@ for b in (st.get("blocks") or []):
         if settle_sec > 0:
             time.sleep(settle_sec)
         after = self._fetch_snapshot()
-        return diff_snapshots(cursor.state, after, started_utc)
+        return diff_snapshots(
+            cursor.state,
+            after,
+            started_utc,
+            vm_clock_offset=cursor.vm_clock_offset,
+            t0_epoch_override=cursor.vm_t0_epoch,
+        )
 
 
 def _valid_pair(before: dict[str, Any], after: dict[str, Any], key: str, expected_type: type) -> tuple[Any, Any] | None:
@@ -192,8 +213,15 @@ def diff_snapshots(
     before: dict[str, Any],
     after: dict[str, Any],
     started_utc: str,
+    vm_clock_offset: float = 0.0,
+    t0_epoch_override: float | None = None,
 ) -> TelemetryVerdict:
-    t0_epoch = parse_iso_utc(started_utc) or 0.0
+    t0_epoch = effective_t0_epoch(
+        started_utc,
+        vm_clock_offset=vm_clock_offset,
+        t0_epoch_override=t0_epoch_override,
+    )
+    t0_floor = t0_epoch - 0.020
 
     alerts: list[dict[str, Any]] = []
     ttfa_candidates: list[float] = []
@@ -209,7 +237,7 @@ def diff_snapshots(
                 continue
             eid = ev.get("id")
             ev_ts = parse_iso_utc(ev.get("time"))
-            is_new = (eid is not None and eid not in b_ev_ids) or (eid is None and ev_ts is not None and ev_ts >= t0_epoch)
+            is_new = (eid is not None and eid not in b_ev_ids) or (eid is None and ev_ts is not None and ev_ts >= t0_floor)
             if not is_new:
                 continue
             sev = str(ev.get("severity", "")).lower()
@@ -217,8 +245,9 @@ def diff_snapshots(
             if _is_housekeeping_event(kind, sev):
                 continue
             alerts.append({"sensor": ev.get("source", "status"), "kind": kind, "message": ev.get("message", ""), "target": ev.get("target", ""), "severity": sev})
-            if ev_ts and ev_ts >= t0_epoch:
-                ttfa_candidates.append(max(1.0, (ev_ts - t0_epoch) * 1000.0))
+            ttfa_val = compute_event_ttfa_ms(ev_ts, t0_epoch, jitter_grace_sec=0.020)
+            if ttfa_val is not None:
+                ttfa_candidates.append(ttfa_val)
 
     # 2. L7 WAF findings & counters
     pair = _valid_pair(before, after, "l7", dict)
@@ -234,8 +263,9 @@ def diff_snapshots(
             if fk not in b_l7_findings:
                 alerts.append({"sensor": "l7-waf", "uri": f.get("uri", f.get("path", "")), "rule_id": f.get("rule_id", f.get("rule", "L7")), "src_ip": f.get("remote_addr", ""), **f})
                 ts = parse_iso_utc(f.get("time") or f.get("observed_utc"))
-                if ts and ts >= t0_epoch:
-                    ttfa_candidates.append(max(1.0, (ts - t0_epoch) * 1000.0))
+                ttfa_val = compute_event_ttfa_ms(ts, t0_epoch, jitter_grace_sec=0.020)
+                if ttfa_val is not None:
+                    ttfa_candidates.append(ttfa_val)
 
         l7_delta = (
             int(a_l7_st.get("findings_total", 0)) - int(b_l7_st.get("findings_total", 0))

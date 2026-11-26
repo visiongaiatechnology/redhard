@@ -117,7 +117,7 @@ def export_sarif_json(scorecard: ContenderScorecard, out_path: Path) -> Path:
                 "tool": {
                     "driver": {
                         "name": f"VGT-HardRed::{scorecard.contender_id}",
-                        "semanticVersion": "1.0.1",
+                        "semanticVersion": "1.1.0",
                         "rules": list(rules.values()),
                     }
                 },

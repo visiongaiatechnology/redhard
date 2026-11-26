@@ -13,6 +13,44 @@ from vgt_hardred.models import GroundTruthCase
 class AdapterCursor:
     captured_utc: str
     state: dict[str, Any] = field(default_factory=dict)
+    vm_clock_offset: float = 0.0
+    vm_t0_epoch: float | None = None
+
+
+def effective_t0_epoch(
+    started_utc: str,
+    cursor: AdapterCursor | None = None,
+    vm_clock_offset: float | None = None,
+    t0_epoch_override: float | None = None,
+) -> float:
+    """Resolve the authoritative VM-synchronized start epoch (seconds) for TTFA measurement."""
+    if t0_epoch_override is not None:
+        return float(t0_epoch_override)
+    if cursor is not None and cursor.vm_t0_epoch is not None:
+        return float(cursor.vm_t0_epoch)
+    base = parse_iso_utc(started_utc) or 0.0
+    if base <= 0.0:
+        return 0.0
+    offset = vm_clock_offset if vm_clock_offset is not None else (cursor.vm_clock_offset if cursor is not None else 0.0)
+    return base + float(offset)
+
+
+def compute_event_ttfa_ms(
+    ev_ts: float | None,
+    t0_epoch: float,
+    jitter_grace_sec: float = 0.020,
+    integer_second_granularity: bool = False,
+) -> float | None:
+    """Convert event epoch timestamp into non-negative TTFA in milliseconds."""
+    if ev_ts is None or ev_ts <= 0.0 or t0_epoch <= 0.0:
+        return None
+    if ev_ts >= (t0_epoch - jitter_grace_sec):
+        return max(1.0, (ev_ts - t0_epoch) * 1000.0)
+    # Logs with 1-second truncation (e.g. SafeLine / ModSecurity) falling in the exact start second
+    if integer_second_granularity and int(ev_ts) == int(t0_epoch):
+        frac_rem = max(0.05, 1.0 - (t0_epoch % 1.0))
+        return max(25.0, min(250.0, frac_rem * 500.0))
+    return None
 
 
 @dataclass(slots=True)

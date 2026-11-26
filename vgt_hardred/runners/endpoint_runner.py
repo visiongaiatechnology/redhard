@@ -66,9 +66,15 @@ def run_endpoint_domain(
         cursor = adapter.capture_cursor()
         t0_utc = datetime.now(timezone.utc).isoformat()
         t0 = time.perf_counter()
-        rc, out, err = vm.ssh(cmd, timeout_sec=timeout_sec)
+        if "<<" in cmd:
+            rc, out, err = vm.ssh(cmd, timeout_sec=timeout_sec)
+            vm_t0 = None
+        else:
+            rc, out, err, vm_t0 = vm.ssh_timed(cmd, timeout_sec=timeout_sec)
         dur = (time.perf_counter() - t0) * 1000.0
         end_utc = datetime.now(timezone.utc).isoformat()
+        if vm_t0 is not None:
+            cursor.vm_t0_epoch = vm_t0
 
         damaged: int | None = None
         parsed_json: dict[str, Any] = {}
@@ -81,7 +87,11 @@ def run_endpoint_domain(
             parsed_json = {}
 
         if progress_file:
-            _, p_out, _ = vm.ssh(f"cat {progress_file} 2>/dev/null || true", timeout_sec=10)
+            try:
+                _, p_out, _ = vm.ssh(f"cat {progress_file} 2>/dev/null || true", timeout_sec=30)
+            except Exception:
+                time.sleep(2)
+                _, p_out, _ = vm.ssh(f"cat {progress_file} 2>/dev/null || true", timeout_sec=30)
             p_lines = [ln.strip() for ln in p_out.splitlines() if ln.strip()]
             if p_lines:
                 try:

@@ -7,7 +7,14 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from vgt_hardred.adapters.base import AdapterCursor, TelemetryVerdict, compute_context_maturity, parse_iso_utc
+from vgt_hardred.adapters.base import (
+    AdapterCursor,
+    TelemetryVerdict,
+    compute_context_maturity,
+    compute_event_ttfa_ms,
+    effective_t0_epoch,
+    parse_iso_utc,
+)
 from vgt_hardred.errors import TransportError
 from vgt_hardred.models import GroundTruthCase
 from vgt_hardred.vm_control import VMController
@@ -54,6 +61,7 @@ class CrowdSecAdapter:
 
     def prepare(self) -> None:
         self.vm.ensure_sandboxes()
+        self.vm.measure_clock_offset(force_refresh=True)
 
     def clear_attacker_blocks(self) -> None:
         self.vm.ssh(
@@ -78,8 +86,13 @@ class CrowdSecAdapter:
         return {"alerts": [], "decisions": [], "appsec_lines": 0}
 
     def capture_cursor(self) -> AdapterCursor:
+        vm_off = self.vm.clock_offset()
         snap = self._fetch_snapshot()
-        return AdapterCursor(captured_utc=datetime.now(timezone.utc).isoformat(), state=snap)
+        return AdapterCursor(
+            captured_utc=datetime.now(timezone.utc).isoformat(),
+            state=snap,
+            vm_clock_offset=vm_off,
+        )
 
     def collect_since(
         self,
@@ -92,7 +105,7 @@ class CrowdSecAdapter:
             time.sleep(settle_sec)
         before = cursor.state
         after = self._fetch_snapshot()
-        t0_epoch = parse_iso_utc(started_utc) or 0.0
+        t0_epoch = effective_t0_epoch(started_utc, cursor)
 
         b_alert_ids = {a.get("id") for a in (before.get("alerts") or []) if isinstance(a, dict)}
         b_dec_ids = {d.get("id") for d in (before.get("decisions") or []) if isinstance(d, dict)}
@@ -115,8 +128,9 @@ class CrowdSecAdapter:
                     "events_count": al.get("events_count", 1),
                     "target": al.get("message") or al.get("reason") or "",
                 })
-                if ts and ts >= t0_epoch:
-                    ttfa_candidates.append(max(1.0, (ts - t0_epoch) * 1000.0))
+                ttfa_val = compute_event_ttfa_ms(ts, t0_epoch, jitter_grace_sec=0.020)
+                if ttfa_val is not None:
+                    ttfa_candidates.append(ttfa_val)
 
         for dec in (after.get("decisions") or []):
             if isinstance(dec, dict) and dec.get("id") not in b_dec_ids:

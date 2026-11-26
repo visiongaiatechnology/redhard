@@ -17,7 +17,7 @@ def run_compliance_domain(
 ) -> tuple[int, list[str], dict[str, Any]]:
     """Run Lynis quick audit + kernel LSM inspection on target VM."""
     # Check active Linux Security Modules
-    rc_lsm, out_lsm, _ = vm.ssh("cat /sys/kernel/security/lsm 2>/dev/null || true", timeout_sec=10)
+    rc_lsm, out_lsm, _ = vm.ssh("cat /sys/kernel/security/lsm 2>/dev/null || true", timeout_sec=25)
     lsm_active = [x.strip() for x in out_lsm.strip().split(",") if x.strip()] if rc_lsm == 0 else []
 
     hardening_index = 0
@@ -41,7 +41,7 @@ def run_compliance_domain(
                 f"sudo chown -R 0:0 lynis && sudo chmod 755 lynis/lynis && sudo chmod -R go-w lynis && "
                 f"sudo /bin/sh -c 'cd {vm.cfg.remote_work_dir}/lynis && /bin/sh ./lynis audit system --quick --no-colors --quiet </dev/null' 2>&1 || true; "
                 f"sudo grep -E 'hardening_index|warning\\[\\]|suggestion\\[\\]' /var/log/lynis-report.dat 2>/dev/null || true",
-                timeout_sec=180,
+                timeout_sec=420,
             )
             lynis_ran = True
             m_idx = re.search(r"hardening_index=(\d+)", out)

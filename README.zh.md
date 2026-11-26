@@ -7,7 +7,7 @@
 
 [![License](https://img.shields.io/badge/License-AGPL--3.0--only-blue?style=for-the-badge)](LICENSE)
 [![Third-Party](https://img.shields.io/badge/Third--Party-OSI_Upstream_Suites-0A7E8C?style=for-the-badge)](THIRD_PARTY_NOTICES.md)
-[![Version](https://img.shields.io/badge/Version-1.0.1-orange?style=for-the-badge)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-1.1.0-orange?style=for-the-badge)](CHANGELOG.md)
 [![Status](https://img.shields.io/badge/Status-Experimental_Benchmark_Suite-blueviolet?style=for-the-badge)](#️-实验性组合基准测试免责声明)
 [![Target](https://img.shields.io/badge/Target-Linux_x86__64_(Kernel_6.x%2F7.x)-lightgrey?style=for-the-badge&logo=linux)](#-2-双平面隔离架构-dual-plane-isolation)
 [![Orchestrator](https://img.shields.io/badge/Orchestrator-Python_3.11%2B_(Zero--Dep)-3776AB?style=for-the-badge&logo=python)](#-6-快速开始与安装)
@@ -46,6 +46,26 @@
 - **系统合规性与性能开销**（`Lynis`、`sysbench`、`fio`、HTTP `p95`/`p99` 延迟、安全守护进程 RSS 内存与 CPU 占用）通常在脱离主动攻防的独立基准中测量。
 
 **VGT HardRed (`RedHard`)** 将上述六个层面统一到一个**厂商中立、基于快照还原的全栈基准测试框架**中。每一个被测安全系统（`SUT`）都在完全相同的操作系统镜像、内核、Web 栈、攻击向量、良性误报控制样本以及硬件负载下接受检验。
+
+> **公开发布版 `1.1.0` 说明：** 已从内部 V1.3 完整移植所有非攻击性的核心修复，包括高精度时钟偏移校准、遥测差分、`BLOCKED_INODE` 隔离检测、`expected_prevention` 阻断率修正、`--resume` 断点续测以及新适配器支持，以确保包括 **GeDefense Linux `6.3.0`** 在内的现代防护体系均可在 `S01`–`S15` 标准安全域上可靠验证。
+
+---
+
+## 🔒 关于 V1.3 闭源测试（`ARES` 与反间谍模块 `S16–S20`）的说明及研究者申请方式
+
+内部版 **VGT HardRed `1.3`** 额外包含两项高敏锐度评测引擎，**出于安全责任刻意不纳入公开仓库**：
+
+1. **反间谍与反 Rootkit 模块 (`S16`–`S20`)：** 检验隐藏内核模块与恶意 eBPF 扩展防护（`S16`）、异步 `io_uring` 绕过检测（`S17`）、凭据与进程内存窃取防御（`S18`）、内核与 `/proc` 跨视图一致性核验（`S19`），以及在日志 DoS 与规则投毒下的传感器与证据链抗篡改能力（`S20`）。
+2. **`REDHARD ARES`（自适应红队评估系统）：** 多随机种子自适应 Red/Blue/Purple 对抗链评估引擎，涵盖架构韧性（`R1`–`R12`）、运行时韧性、自适应对抗韧性、系统自保以及源码级证据引用校验（`E1`）。
+
+> [!WARNING]
+> **为何不公开 `V1.3`（`ARES` 与反间谍模块）：**  
+> 与常规 Web 或合规检测不同，V1.3 模块包含真实的内核/eBPF Rootkit 触发探针、`io_uring` 规避手法、凭据与内存读取向量及自适应多阶段攻击链编排逻辑。将其直接开源会带来极高的双重用途与恶意武器化风险。
+
+### 具备声誉的安全研究员与渗透测试工程师如何申请 V1.3
+经核验声誉的安全研究员、蓝队/红队工程师及授权渗透测试人员可申请获取包含 `ARES` 与反间谍模块的完整 **V1.3**：
+- **GitHub Issue：** 在 **[GitHub Issues](https://github.com/visiongaiatechnology/redhard/issues)** 提交访问意向（请勿公开张贴敏感身份材料，我们将通过安全通道进一步核验）；**或**
+- **加密联系表单：** 直接通过 **[https://visiongaiatechnology.de](https://visiongaiatechnology.de)** 上的加密联系表单与我们联系。
 
 ---
 
@@ -327,7 +347,7 @@ redhard/
 ├── README.zh.md                    # 简体中文文档 (中文)
 ├── SECURITY.md                     # 负责任使用与安全漏洞报告策略
 ├── THIRD_PARTY_NOTICES.md          # 完整的第三方归属与许可证台账
-├── VERSION                         # 发布版本号 (1.0.1)
+├── VERSION                         # 发布版本号 (1.1.0)
 └── pyproject.toml                  # Python 包清单
 ```
 

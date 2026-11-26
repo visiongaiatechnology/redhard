@@ -67,7 +67,11 @@ def _send_http(
         with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
             return int(resp.status), resp.read(512).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
-        return int(exc.code), exc.read(512).decode("utf-8", errors="replace")
+        try:
+            preview = exc.read(512).decode("utf-8", errors="replace")
+        except Exception as read_exc:
+            preview = str(read_exc)
+        return int(exc.code), preview
     except Exception as exc:
         return None, str(exc)
 

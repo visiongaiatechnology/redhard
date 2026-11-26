@@ -20,12 +20,16 @@ class BaselineAdapter:
 
     def prepare(self) -> None:
         self.vm.ensure_sandboxes()
+        self.vm.measure_clock_offset(force_refresh=True)
 
     def clear_attacker_blocks(self) -> None:
         return
 
     def capture_cursor(self) -> AdapterCursor:
-        return AdapterCursor(captured_utc=datetime.now(timezone.utc).isoformat())
+        return AdapterCursor(
+            captured_utc=datetime.now(timezone.utc).isoformat(),
+            vm_clock_offset=self.vm.clock_offset(),
+        )
 
     def collect_since(
         self,

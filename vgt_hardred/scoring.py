@@ -57,16 +57,18 @@ def compute_domain_score(
 
     attacks = [r for r in results if r.case.polarity == "attack"]
     benign = [r for r in results if r.case.polarity == "benign"]
+    prev_attacks = [r for r in attacks if r.case.expected_prevention]
 
     a_tot = len(attacks)
     b_tot = len(benign)
     det_tp = sum(1 for r in attacks if r.detected)
-    prev_tp = sum(1 for r in attacks if r.prevented)
+    prev_tot = len(prev_attacks) if prev_attacks else a_tot
+    prev_tp = sum(1 for r in prev_attacks if r.prevented) if prev_attacks else sum(1 for r in attacks if r.prevented)
     det_fp = sum(1 for r in benign if r.detected)
     prot_fp = sum(1 for r in benign if r.prevented)
 
     det_tpr = (det_tp / a_tot) if a_tot else 0.0
-    prev_tpr = (prev_tp / a_tot) if a_tot else 0.0
+    prev_tpr = (prev_tp / prev_tot) if prev_tot else 0.0
     det_fpr = (det_fp / b_tot) if b_tot else 0.0
     prot_fpr = (prot_fp / b_tot) if b_tot else 0.0
 
